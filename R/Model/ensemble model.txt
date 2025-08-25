@@ -1,0 +1,70 @@
+library(caret)
+library(pROC)
+library(randomForest)
+library(rpart)
+library(kernlab)
+library(fastshap)
+
+library(caret)
+library(pROC)
+library(glmnet)  # Ridge Regression
+library(e1071)   # SVM
+library(rpart)   # Decision Tree
+
+set.seed(123)
+m <- read.csv("train.csv", header = T)
+trainData = m[, -1]
+trainLabels = as.factor(m[, 1])
+
+lr_model <- glm(trainLabels ~ ., data = cbind(trainData, trainLabels), family = binomial())
+set.seed(123)
+ridge_model <- cv.glmnet(
+  as.matrix(trainData),
+  as.numeric(trainLabels) - 1,  
+  family = "binomial", 
+  alpha = 0  
+)
+svm_tune <- tune(
+  svm, 
+  train.x = trainData, 
+  train.y = trainLabels, 
+  kernel = "radial", 
+  probability = TRUE,  
+  ranges = list(cost = 10^(-1:5), gamma = 10^(-2:1))
+)
+svm_model <- svm_tune$best.model
+set.seed(123)
+dt_model <- rpart(
+  trainLabels ~ ., 
+  data = cbind(trainData, trainLabels),
+  control = rpart.control(cp = 0.01, maxdepth = 10)
+)
+lr_predict_fn <- function(object, newdata) {
+  predict(object, newdata = newdata, type = "response")
+}
+ridge_predict_fn <- function(object, newdata) {
+  as.numeric(predict(object, newx = as.matrix(newdata), s = "lambda.min", type = "response"))
+}
+svm_predict_fn <- function(object, newdata) {
+  pred_prob <- predict(object, newdata, probability = TRUE)  
+  attr(pred_prob, "probabilities")[, 2] 
+}
+dt_predict_fn <- function(object, newdata) {
+  predict(object, newdata, type = "prob")[, 2]
+}
+
+ensemble_predict_fn <- function(object, newdata) {
+  lr_pred <- lr_predict_fn(lr_model, newdata)
+  ridge_pred <- ridge_predict_fn(ridge_model, newdata)
+  svm_pred <- svm_predict_fn(svm_model, newdata)
+  dt_pred <- dt_predict_fn(dt_model, newdata)
+  rowMeans(data.frame(
+    lr = as.numeric(lr_pred),
+    ridge = as.numeric(ridge_pred),
+    svm = as.numeric(svm_pred),
+    dt = as.numeric(dt_pred)
+  ))
+}
+ensemble_train_prob <- ensemble_predict_fn(NULL, trainData)
+ensemble_train_roc <- roc(trainLabels, ensemble_train_prob)
+
