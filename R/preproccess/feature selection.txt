@@ -1,0 +1,53 @@
+library(mRMRe)
+library(caret)
+library(glmnet)
+library(e1071)
+set.seed(123) 
+m=read.table("1.txt", header=T, sep="\t", check.names=F,quote = "")
+m<-m[,-1]
+x = scale(m[,-1],center = T, scale = TRUE)
+write.table(x, file = "z_transformed.txt", sep = "\t", row.names = FALSE, quote = FALSE)
+m2 = data.frame(x)
+group<-m[,1]
+m3 = data.frame(group)
+df = cbind(m3,m2)
+response <- df[, 1]  
+features <- df[, -1]  
+response <- as.numeric(response) 
+data_mrmr <- mRMR.data(data = cbind(response, features))
+mrmr=mRMR.ensemble(data =data_mrmr, target_indices = 1, 
+                   feature_count = 400, solution_count = 1)
+index=mrmr@filters[[as.character(mrmr@target_indices)]]
+mi_matrix <- mrmr@mi_matrix  
+scores <- mi_matrix[index, 1]  
+train_feature <- df[,index]
+rt = cbind(m3,train_feature)
+m=rt
+group<-m[,1]
+ps  <- apply(m[,-1],2,function(x)  shapiro.test(x)$p.value)  
+pb  <- apply(m[,-1],2,function(x) bartlett.test(x,m$group)$p.value)  
+w1  <- which(ps>0.05 & pb>0.05)
+m1  <- m[, c(names(w1)), drop = FALSE]
+pt <- apply(m1,2,function(x)  t.test(x,m$group)$p.value) 
+#pt<-t.test(m1,m$Group)$p.value
+w2  <- which(pt<0.05) 
+l1  <- length(w2);l1                   
+A1 <- m[, !(names(m) %in% names(m1)), drop = FALSE]  
+A1$group <-group
+pwm <- apply(A1[, -1], 2, function(x) wilcox.test(x ~ group)$p.value)
+w3 <- which(pwm < 0.05)
+selected_columns <- sort(c(names(w2), names(w3)))
+A2 <- m[, c('group', selected_columns), drop = FALSE]
+cor_matrix <- cor(A2)
+high_cor <- findCorrelation(cor_matrix, cutoff = 0.9) 
+features_after_correlation <- A2[, -high_cor]
+A2 = cbind(m3,features_after_correlation)
+A2=A2[,-1]
+x <- as.matrix(A2[,c(2:ncol(A2))])
+y <- as.numeric(response)
+lasso_cv <- cv.glmnet(x, y, alpha = 1, family = "binomial",nlambda=200,nfolds=10,type.measure = c("deviance")) # 交叉验证确定最佳 lambda
+lasso_model <- glmnet(x, y, alpha = 1, family = "binomial", nlambda=200,lambda = lasso_cv$lambda.1se)
+selected_features_lasso <- which(coef(lasso_model) != 0)[-1]  # 获取非零系数特征
+features_after_lasso <- A2[, selected_features_lasso]
+rt = cbind(m3,features_after_lasso)
+write.csv(rt, "newtrain.csv", row.names = FALSE)

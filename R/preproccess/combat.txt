@@ -1,0 +1,64 @@
+filename0 = c('1.csv',  '2.csv',"3.csv")
+Groupname = c('Center I', 'Center II', 'Center III')
+Batch = c(1, 2, 3)
+cc = 3
+mydata = data.frame()
+for (f in c(1:length(filename0))) {
+  ref.data = read.csv(filename0[f])
+  names(ref.data)[1] <- "p_ID"
+  ref.data[,1] = as.factor(ref.data[,1])
+  mydata = rbind(mydata, cbind(Groupname[f], Batch[f], ref.data))
+}
+ref.batch=1
+names(mydata)[1:2] = c('group', 'batch')
+mydata = data.frame(mydata[order(mydata$batch), ])
+Hospital = unique(mydata$group); Hospital
+Color = c("#0bb6c3", "#b394e5", "#efd15a", "#dc5c27", "#fcbea5", "#f17f4f","#d9af09" )
+Mean = as.numeric(); SD = as.numeric()
+ref.data = mydata[which(mydata$batch==ref.batch), ]
+any(is.na(mydata)) 
+library(sva)
+total_x = mydata[, -c(1:cc)]
+sum(is.na(total_x))
+combat_x = ComBat(dat=t(total_x), batch=mydata$batch, 
+                  mod=NULL, ref.batch=ref.batch, par.prior=TRUE, prior.plots=FALSE)
+total_x <- t(combat_x)
+
+# -------------- save --------------------------
+ComBat.data = cbind(mydata[, c(1:cc)], total_x)
+if (length(filename0)==1){write.csv(ComBat.data, paste0('ComBat_', filename0), row.names = F)}
+if (length(filename0)>=2){write.csv(ComBat.data, paste0('1ComBat_Mixdata.csv'), row.names = F)}
+library(ggplot2)
+library(factoextra)
+library(FactoMineR)
+# ---- PCA1 -----------
+Bef.Data = mydata
+Bef.pca = PCA(Bef.Data[,-c(1:cc)], graph=FALSE)
+
+# ---- PCA2 -----------
+Af.Data  = ComBat.data
+Af.pca  = PCA( Af.Data[,-c(1:cc)], graph=FALSE)
+
+lim = 60
+# ---------------- PCA -------------------
+pdf('Before_ComBat.pdf', width=5, height = 4)
+fviz_pca_ind(Bef.pca, geom.ind="point", pointsize=3, pointshape=21, 
+             fill.ind = as.factor(Bef.Data$group),
+             palette = Color, addEllipses=TRUE, title = 'Before batch calibration',
+             legend.title="")+ 
+  theme_bw() + theme(panel.grid.major=element_blank(), panel.grid.minor=element_blank()) + 
+  theme(plot.title = element_text(hjust = 0.5))+
+  xlim(-lim, lim) + ylim(-lim, lim) #+
+dev.off()
+
+pdf('After_ComBat.pdf', width=5, height = 4)
+fviz_pca_ind(Af.pca, geom.ind="point", pointsize=3, pointshape=21, 
+             fill.ind = as.factor(Af.Data$group),
+             palette = Color, addEllipses=TRUE, title = 'After batch calibration',legend.title="Group")+ 
+  theme_bw() + theme(panel.grid.major=element_blank(), panel.grid.minor=element_blank()) + 
+  theme(plot.title = element_text(hjust = 0.5))+
+  xlim(-lim, lim) + ylim(-lim, lim)
+dev.off()
+
+print('finish')
+#####################
