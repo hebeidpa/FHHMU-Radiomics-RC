@@ -1,0 +1,17 @@
+{
+    "name": "gastric",
+    "description": "gastric",
+    "reference": "Vanderbilt University Medical Center",
+    "licence": "CC-BY-SA 4.0",
+    "relase": "1.0 04/05/2018",
+    "tensorImageSize": "3D",
+    "labels": {
+        "background": 0,
+        "cancer": 1
+    },
+    "numTraining": 200,
+    "file_ending": ".nii.gz",
+    "channel_names": {
+        "0": "CT"
+    }
+}
