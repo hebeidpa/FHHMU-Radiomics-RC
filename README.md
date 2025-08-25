@@ -14,6 +14,10 @@ Radiomics-based ensemble model predicts postoperative recurrence of gastric canc
 
       Trained model weights (optional, contact for access).
 
-      https://github.com/hebeidpa/DeepComp/tree/main/Gastric-nnUNet
+      
 ## R
-
+## Directory Structure
+  combat
+  feature selection 
+  ensemble model
+  
